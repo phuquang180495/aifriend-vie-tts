@@ -1,10 +1,10 @@
 import io
-import os
+import gc
 import soundfile as sf
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-# 🎯 TỐI ƯU HÓA BỘ NHỚ RAM CHO PUTER / RENDER 512MB
+# 🎯 TỐI ƯU HÓA BỘ NHỚ RAM DƯỚI 512MB
 import torch
 torch.set_num_threads(1)
 torch.set_grad_enabled(False)
@@ -21,8 +21,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Khởi tạo mô hình
-tts = KokoroVietnamese(device="cpu", voice="manh_dung")
+tts_model = None
+
+# 🎯 LAZY LOADING: Chỉ nạp mô hình vào RAM khi bắt đầu gọi phát âm
+def get_tts_model():
+    global tts_model
+    if tts_model is None:
+        tts_model = KokoroVietnamese(device="cpu", voice="manh_dung")
+        gc.collect()
+    return tts_model
 
 VOICES = [
     "manh_dung", "diem_trinh", "hung_thinh", "mai_linh", 
@@ -42,14 +49,15 @@ async def generate_tts(data: dict):
     if not text.strip():
         return Response(status_code=400)
     
-    tts.voice = voice if voice in VOICES else "manh_dung"
+    model = get_tts_model()
+    model.voice = voice if voice in VOICES else "manh_dung"
     
-    # 🎯 Tắt hoàn toàn bộ nhớ đệm Gradient của PyTorch để giải phóng RAM
     with torch.no_grad():
-        audio, _ = tts.synthesize(text)
+        audio, _ = model.synthesize(text)
     
     buf = io.BytesIO()
     sf.write(buf, audio, 24000, format='WAV')
     buf.seek(0)
     
+    gc.collect() # Giải phóng ngay RAM sau khi tạo audio xong
     return Response(content=buf.read(), media_type="audio/wav")
