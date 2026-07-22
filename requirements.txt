@@ -1,6 +1,6 @@
 fastapi
 uvicorn
 soundfile
-git+https://github.com/iamdinhthuan/Kokoro-Vietnamese.git
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch
+torch==2.2.2+cpu
+git+https://github.com/iamdinhthuan/Kokoro-Vietnamese.git
