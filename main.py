@@ -1,12 +1,18 @@
+import io
+import os
+import soundfile as sf
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+
+# 🎯 TỐI ƯU HÓA BỘ NHỚ RAM CHO PUTER / RENDER 512MB
+import torch
+torch.set_num_threads(1)
+torch.set_grad_enabled(False)
+
 from kokoro_vietnamese import KokoroVietnamese
-import io
-import soundfile as sf
 
 app = FastAPI()
 
-# 🎯 Mở khóa CORS cho trình duyệt web kết nối
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🎯 Khởi tạo mô hình Kokoro
+# Khởi tạo mô hình
 tts = KokoroVietnamese(device="cpu", voice="manh_dung")
 
 VOICES = [
@@ -37,7 +43,10 @@ async def generate_tts(data: dict):
         return Response(status_code=400)
     
     tts.voice = voice if voice in VOICES else "manh_dung"
-    audio, _ = tts.synthesize(text)
+    
+    # 🎯 Tắt hoàn toàn bộ nhớ đệm Gradient của PyTorch để giải phóng RAM
+    with torch.no_grad():
+        audio, _ = tts.synthesize(text)
     
     buf = io.BytesIO()
     sf.write(buf, audio, 24000, format='WAV')
